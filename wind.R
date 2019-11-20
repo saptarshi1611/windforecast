@@ -18,27 +18,30 @@ library(dplyr)
 
 setwd("C:/Users/HP/Downloads/Research Project/Data")
 #LOAD DATA
-TN1718 <- read.xlsx("TN_WS_1718.xlsx", 1)
-TN19 <- read.xlsx("TN_WS_2019.xlsx", 1)
-TN16 <- read.xlsx("TN_WS_2016.xlsx", 1)
+TN <- read.xlsx("TN_Chennai_Manali.xlsx", 1)
+TN = separate(TN, col = To.Date, into = c("Date", "Time"), sep = 10, remove=T)
+TN$Time<-NULL
+TN$Date=strptime(TN$Date, format= "%d-%m-%Y")
+
+#TN1718 <- read.xlsx("TN_WS_1718.xlsx", 1)
+#TN19 <- read.xlsx("TN_WS_2019.xlsx", 1)
+#TN16 <- read.xlsx("TN_WS_2016.xlsx", 1)
 #DROP UNNECESSARY COLUMN
-TN1718$From.Date<-NULL
+#TN1718$From.Date<-NULL
 #SEPARATE DATE AND TIME
-TN_split = separate(TN1718, col = To.Date, into = c("Date", "Time"), sep = 10, remove=T)
-TN_split$Time<-NULL
+#TN_split = separate(TN1718, col = To.Date, into = c("Date", "Time"), sep = 10, remove=T)
+#TN_split$Time<-NULL
 
 #Converting the date column from character to required time format
 TN_split$Date=strptime(TN_split$Date, format= "%d-%m-%Y")
-TN<-rbind(TN16, TN_split, TN19)
+#combining all 3 datasets into 1
+#TN<-rbind(TN16, TN_split, TN19)
 
 TN$WS = as.character(TN$WS)
 TN$WS = as.numeric(TN$WS)
 
 
-#combining all 3 datasets into 1
-
-
-###########################TN$Date=as.POSIXct(strptime(TN$Date, format= "%Y-%m-%d"))
+#TN$Date=as.POSIXct(strptime(TN$Date, format= "%Y-%m-%d"))
 
 #converting the 5 value columns from factor to numeric
 #TN$WS = as.character(TN$WS)
@@ -68,7 +71,7 @@ temp$WS <- tsclean(temp$WS)
 TN_ag= aggregate(temp, as.Date, mean)
 TN_ag[,1]=round(TN_ag[,1],digits = 2)
 
-TN.ts <- ts(TN_ag, start= c(2016, 06, 14), frequency=365)
+TN.ts <- ts(TN_ag, start= c(2016, 01, 01), frequency=365)
 TN.df <- as.data.frame(TN_ag)
 write.table(TN.df, "C:/Users/HP/Downloads/Research Project/Data/TN_all.csv", sep=" ,", row.names=FALSE)
 autoplot(decompose(TN.ts))
@@ -91,6 +94,7 @@ apply(TN.ts, 2, adf.test)
 
 #Ljung-Box Test for white noise
 Box.test(TN.ts, lag = 24, fitdf = 0, type = "Ljung")
+
 
 # The pvalue very less than 0.05 suggests that the data is not white noise
 
@@ -166,33 +170,43 @@ accuracy(TNses)
 autoplot(TNses) + autolayer(fitted(TNses))
 
 ########################## Prophet Model #############
-install.packages('prophet', type="source")
+#install.packages('prophet', type="source")
 library(prophet)
+TN.temporal <- read.csv("TN_all.csv")
 TN.temporal$ds=as.POSIXct(strptime(TN.temporal$ds, format= "%Y-%m-%d"))
-TN.prophet<-prophet(TN.temporal, growth = 'linear', seasonality.mode = 'additive')
+TN.prophet<-prophet(TN.temporal[1:1058,], growth = 'linear', seasonality.mode = 'additive', daily.seasonality=F)
+TN.prophetforecast <- predict(TN.prophet, TN.temporal[1059:1245,], type="response")
+
+#TN.prophet<-prophet(TN.temporal, growth = 'linear', seasonality.mode = 'additive')
+#TN.prophetforecast <- predict(TN.prophet, TN.temporal, type="response")
+
+####### RMSE
+actual<- TN.temporal[1059:1245,2]
+
+#sqrt(mean((TN.prophetforecast$yhat - actual)^2))
+
+
+#se = (TN.prophetforecast$yhat - actual)^2
+#mse = mean(se)
+#rmse = sqrt(mse)
+
+rmse(actual, TN.prophetforecast$yhat)
+mape(actual, TN.prophetforecast$yhat)
+mae(actual, TN.prophetforecast$yhat)
+
 summary(TN.prophet) # from here it can be seen that there are 25 times where there were sudden changes in the contineuty of the data
-TN.future <- make_future_dataframe(TN.prophet, periods = 90)
-TN.prophetforecast <- predict(TN.prophet, TN.future)
-plot(TN.prophet, TN.prophetforecast)
+#TN.future <- make_future_dataframe(TN.prophet, periods = 90)
+#TN.prophetforecast <- predict(TN.prophet, TN.future)
+#plot(TN.prophet, TN.prophetforecast)
 
-TN.prophetcv<- cross_validation(TN.prophet, initial = 871, horizon = 90, units = 'days')
-head(TN.prophetcv)
-TN.prophetaccuracy<- performance_metrics(TN.prophetcv)
-head(TN.prophetaccuracy)
+#TN.prophetcv<- cross_validation(TN.prophet,horizon = 90, units = 'days')
+#tail(TN.prophetcv)
+#TN.prophetaccuracy<- performance_metrics(TN.prophetcv)
+tail(TN.prophetaccuracy)
+#mean(TN.prophetaccuracy$rmse)
+#mean(TN.prophetaccuracy$mape)
 
 
-###############################################################
-install.packages("Metrics")
-library(Metrics)
-df_actual<-TN.temporal[872:1245,]
-se = (TN.prophetforecast[, 'yhat'] - df_actual)^2
-mse = np.mean(se)
-rmse = np.sqrt(mse)
-mean_squared_error(metric_df.y, metric_df.yhat)
-mean_absolute_error(metric_df.y, metric_df.yhat)
-rmse(TN.prophetforecast, df_actual)
-mse(TN.prophetcv, 1)
-#############################################################
 
 
 ############## MLP #################
@@ -214,3 +228,92 @@ summary(TN.DHR) # checking the AICc value from summary of the fit model, the val
 TN.DHR.forecast<-forecast(TN.DHR, xreg= fourier(TN.ts, K=3, h=90))
 accuracy(TN.DHR.forecast)
 
+
+
+
+######################################################################################################################
+###################################################################################################################################
+#############################################################################################################################
+##########################################################################################################################
+###########################################   GUJARAT     ##############################################################################
+#################################################################################################################################
+#########################################################################################################################
+###############################################################################################################################
+######################################################################################################################
+
+
+TN1718 <- read.xlsx("TN_WS_1718.xlsx", 1)
+TN19 <- read.xlsx("TN_WS_2019.xlsx", 1)
+TN16 <- read.xlsx("TN_WS_2016.xlsx", 1)
+#DROP UNNECESSARY COLUMN
+TN1718$From.Date<-NULL
+#SEPARATE DATE AND TIME
+TN_split = separate(TN1718, col = To.Date, into = c("Date", "Time"), sep = 10, remove=T)
+TN_split$Time<-NULL
+
+#Converting the date column from character to required time format
+TN_split$Date=strptime(TN_split$Date, format= "%d-%m-%Y")
+#combining all 3 datasets into 1
+TN<-rbind(TN16, TN_split, TN19)
+
+TN$WS = as.character(TN$WS)
+TN$WS = as.numeric(TN$WS)
+
+
+
+
+
+###########################TN$Date=as.POSIXct(strptime(TN$Date, format= "%Y-%m-%d"))
+
+#converting the 5 value columns from factor to numeric
+#TN$WS = as.character(TN$WS)
+#TN$WS = as.numeric(TN$WS)
+
+#TN_split$WD = as.character(TN_split$WD)
+#TN_split$WD = as.numeric(TN_split$WD)
+#TN_split$Temp = as.character(TN_split$Temp)
+#TN_split$Temp = as.numeric(TN_split$Temp)
+#TN_split$BP<-NULL
+#TN_split$WD<-NULL
+#TN_split$Temp<-NULL
+#TN_split$RH<-NULL
+#TN_split$BP = as.character(TN_split$BP)
+#TN_split$BP = as.numeric(TN_split$BP)
+#TN_split$RH = as.character(TN_split$RH)
+#TN_split$RH = as.numeric(TN_split$RH)
+#converting the dataframe into a zoo object
+temp= zoo(TN %>% select(2), order.by = TN$Date)
+#replacing the outliers and null values with locally smoothed values
+temp$WS <- tsclean(temp$WS)
+#agregating the hourly data to daily format in oder to make mid-term predictions successfully
+TN_ag= aggregate(temp, as.Date, mean)
+TN_ag[,1]=round(TN_ag[,1],digits = 2)
+
+TN.ts <- ts(TN_ag, start= c(2016, 06, 14), frequency=365)
+TN.df <- as.data.frame(TN_ag)
+write.table(TN.df, "C:/Users/HP/Downloads/Research Project/Data/TN_all.csv", sep=" ,", row.names=FALSE)
+autoplot(decompose(TN.ts))
+
+#plot(TN_aggregate)
+#TN_aggregate<- as.ts(TN_aggr)
+
+#Dickey-Fuller test for Stationarity
+apply(TN.ts, 2, adf.test)
+
+#As Temp, BP, RH are found to be non-stationary, so they are differenced
+#install.packages("MTS")
+#library(MTS)
+#TN_aggregate_st= diffM(TN_aggregate)
+
+#Retest for stationarity
+#apply(TN_aggregate_st, 2, adf.test)
+
+#autoplot(decompose(TN_aggregate))
+
+#Ljung-Box Test for white noise
+Box.test(TN.ts, lag = 24, fitdf = 0, type = "Ljung")
+
+# The pvalue very less than 0.05 suggests that the data is not white noise
+
+ggAcf(TN.ts)
+#The ACF plot confirms the same
