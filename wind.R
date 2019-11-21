@@ -5,6 +5,10 @@
 #install.packages("zoo")
 #install.packages("lattice")
 #install.packages("ggplot2")
+#install.packages('prophet', type="source")
+#install.packages("nnfor")
+library(nnfor)
+library(prophet)
 library(forecast)
 library(chron)
 library(tseries)
@@ -15,13 +19,17 @@ library(ggplot2)
 library(xlsx)
 library(tidyr)
 library(dplyr)
-
+library(Metrics)
 setwd("C:/Users/HP/Downloads/Research Project/Data")
+
+
 #LOAD DATA
-TN <- read.xlsx("TN_Chennai_Manali.xlsx", 1)
+TN <- read.xlsx("TN_Chennai_Alandur.xlsx", 1)
 TN = separate(TN, col = To.Date, into = c("Date", "Time"), sep = 10, remove=T)
 TN$Time<-NULL
 TN$Date=strptime(TN$Date, format= "%d-%m-%Y")
+TN$WS = as.character(TN$WS)
+TN$WS = as.numeric(TN$WS)
 
 #TN1718 <- read.xlsx("TN_WS_1718.xlsx", 1)
 #TN19 <- read.xlsx("TN_WS_2019.xlsx", 1)
@@ -33,12 +41,12 @@ TN$Date=strptime(TN$Date, format= "%d-%m-%Y")
 #TN_split$Time<-NULL
 
 #Converting the date column from character to required time format
-TN_split$Date=strptime(TN_split$Date, format= "%d-%m-%Y")
+#TN_split$Date=strptime(TN_split$Date, format= "%d-%m-%Y")
 #combining all 3 datasets into 1
 #TN<-rbind(TN16, TN_split, TN19)
 
-TN$WS = as.character(TN$WS)
-TN$WS = as.numeric(TN$WS)
+#TN$WS = as.character(TN$WS)
+#TN$WS = as.numeric(TN$WS)
 
 
 #TN$Date=as.POSIXct(strptime(TN$Date, format= "%Y-%m-%d"))
@@ -101,14 +109,17 @@ Box.test(TN.ts, lag = 24, fitdf = 0, type = "Ljung")
 ggAcf(TN.ts)
 #The ACF plot confirms the same
 
+#Storing the lambda value for boxcox transformation
+TNlambda<-BoxCox.lambda(TN.ts)
+
 ############################ ARIMA ######################################
 
-lambda<-BoxCox.lambda(TN.ts)
-TNarima <-auto.arima(ts(TN.ts,frequency=365),D=1,lambda=lambda)
-TNarima.forecast <-forecast(TNarima,h=90)
+
+TNarima <-auto.arima(ts(TN.ts,frequency=365),D=1,lambda=TNlambda)
+TNarima.forecast <-forecast(TNarima,h=180)
 autoplot(TNarima.forecast)
 #write.table(forecastedvalue, "C:/Users/nain/Documents/ARIMApredictedvalue.csv", sep=" ,", row.names=FALSE)
-accuracy(TNarima.forecast)
+TNarima.acc<-accuracy(TNarima.forecast)
 as.numeric(forecastedvalue$mean)
 TNarima.res=TNarima$res
 squared.res.TNarima=TNarima.res^2
@@ -150,49 +161,42 @@ TN.rnn= trainr(temp,
 ####################### Neural Net ########################
 
 
-TNnn=nnetar(TN.ts, size = 20, repeats=30, lambda = lambda, scale.inputs=TRUE)
+TNnn=nnetar(TN.ts, size = 20, repeats=30, lambda = TNlambda, scale.inputs=TRUE)
 
 TNnn.forecast=forecast(TNnn, h=90)
-accuracy(TNnn.forecast)
+TNnn.acc<-accuracy(TNnn.forecast)
 
 autoplot(TNnn.forecast)
 
 
 ################### Simple Exponential Smoothening ####################
 
-TNses <- ses(TN.ts, h = 90, lambda = lambda)
+TNses <- ses(TN.ts, h = 90, lambda = TNlambda)
 
 # checking the error rates to evaluate the model
 #summary(TNses.forecast)
-accuracy(TNses)
+TNses.acc<-accuracy(TNses)
 
 # Add the one-step forecasts for the training data to the plot
 autoplot(TNses) + autolayer(fitted(TNses))
 
 ########################## Prophet Model #############
-#install.packages('prophet', type="source")
-library(prophet)
+
 TN.temporal <- read.csv("TN_all.csv")
-TN.temporal$ds=as.POSIXct(strptime(TN.temporal$ds, format= "%Y-%m-%d"))
-TN.prophet<-prophet(TN.temporal[1:1058,], growth = 'linear', seasonality.mode = 'additive', daily.seasonality=F)
-TN.prophetforecast <- predict(TN.prophet, TN.temporal[1059:1245,], type="response")
+#TN.temporal$ds=as.POSIXct(strptime(TN.temporal$ds, format= "%Y-%m-%d"))
+TN.prophet<-prophet(TN.temporal[1:1204,], growth = 'linear', seasonality.mode = 'additive', daily.seasonality=F)
+TN.prophetforecast <- predict(TN.prophet, TN.temporal[1205:1416,], type="response")
 
 #TN.prophet<-prophet(TN.temporal, growth = 'linear', seasonality.mode = 'additive')
 #TN.prophetforecast <- predict(TN.prophet, TN.temporal, type="response")
 
-####### RMSE
-actual<- TN.temporal[1059:1245,2]
-
-#sqrt(mean((TN.prophetforecast$yhat - actual)^2))
+####### Errors
+TNactual<- TN.temporal[1205:1416,2]
 
 
-#se = (TN.prophetforecast$yhat - actual)^2
-#mse = mean(se)
-#rmse = sqrt(mse)
-
-rmse(actual, TN.prophetforecast$yhat)
-mape(actual, TN.prophetforecast$yhat)
-mae(actual, TN.prophetforecast$yhat)
+rmse(TNactual, TN.prophetforecast$yhat)
+mase(TNactual, TN.prophetforecast$yhat)
+mae(TNactual, TN.prophetforecast$yhat)
 
 summary(TN.prophet) # from here it can be seen that there are 25 times where there were sudden changes in the contineuty of the data
 #TN.future <- make_future_dataframe(TN.prophet, periods = 90)
@@ -202,7 +206,7 @@ summary(TN.prophet) # from here it can be seen that there are 25 times where the
 #TN.prophetcv<- cross_validation(TN.prophet,horizon = 90, units = 'days')
 #tail(TN.prophetcv)
 #TN.prophetaccuracy<- performance_metrics(TN.prophetcv)
-tail(TN.prophetaccuracy)
+#tail(TN.prophetaccuracy)
 #mean(TN.prophetaccuracy$rmse)
 #mean(TN.prophetaccuracy$mape)
 
@@ -210,110 +214,166 @@ tail(TN.prophetaccuracy)
 
 
 ############## MLP #################
-#install.packages("nnfor")
-library(nnfor)
-fit<-mlp(TN.ts, hd=10)
-fit2<-mlp(TN.ts, hd=15)
-fit3<-mlp(TN.ts, hd=20, sel.lag=T,retrain = T)
-forecastfit<-forecast(fit3,h=90)
+
+
+TNmlp<-mlp(TN.ts, hd=20, sel.lag=T,retrain = T)
+TNmlp.forecast<-forecast(fit3,h=90)
 autoplot(forecastfit)
-accuracy(forecastfit)
+TNmlp.acc<-accuracy(forecastfit)
 
 
 
 ####################Dynamic Harmonic Regression###################
 
-TN.DHR<- auto.arima(TN.ts, xreg= fourier(TN.ts, K=3), seasonal = FALSE, lambda = 0)
-summary(TN.DHR) # checking the AICc value from summary of the fit model, the value of K is fixed with the minimum AICc value
-TN.DHR.forecast<-forecast(TN.DHR, xreg= fourier(TN.ts, K=3, h=90))
-accuracy(TN.DHR.forecast)
+TNdhr<- auto.arima(TN.ts, xreg= fourier(TN.ts, K=3), seasonal = FALSE, lambda = 0)
+summary(TNdhr) # checking the AICc value from summary of the fit model, the value of K is fixed with the minimum AICc value
+TNdhr.forecast<-forecast(TNdhr, xreg= fourier(TN.ts, K=3, h=90))
+TNdhr.acc<-accuracy(TNdhr.forecast)
 
 
+############################################################################################################
+############### Accuracy Table ######################
 
+TamilNadu <- data.frame("Models" = c("ARIMA","NN", "SES", "PROPHET", "MLP"), "RMSE" =0, "MAE" =0, "MASE"=0)
+TamilNadu[1,2:3] <- TNarima.acc[1,2:4]
+
+TNarima.acc<-accuracy(TNarima.forecast)
 
 ######################################################################################################################
 ###################################################################################################################################
 #############################################################################################################################
 ##########################################################################################################################
-###########################################   GUJARAT     ##############################################################################
+###########################################   Maharashtra     ##############################################################################
 #################################################################################################################################
 #########################################################################################################################
 ###############################################################################################################################
 ######################################################################################################################
 
 
-TN1718 <- read.xlsx("TN_WS_1718.xlsx", 1)
-TN19 <- read.xlsx("TN_WS_2019.xlsx", 1)
-TN16 <- read.xlsx("TN_WS_2016.xlsx", 1)
-#DROP UNNECESSARY COLUMN
-TN1718$From.Date<-NULL
-#SEPARATE DATE AND TIME
-TN_split = separate(TN1718, col = To.Date, into = c("Date", "Time"), sep = 10, remove=T)
-TN_split$Time<-NULL
+MH <- read.xlsx("Maharashtra_Pune_Karve.xlsx", 1)
+MH = separate(MH, col = To.Date, into = c("Date", "Time"), sep = 10, remove=T)
+MH$Time<-NULL
+MH$Date=strptime(MH$Date, format= "%d-%m-%Y")
+MH$WS = as.character(MH$WS)
+MH$WS = as.numeric(MH$WS)
 
-#Converting the date column from character to required time format
-TN_split$Date=strptime(TN_split$Date, format= "%d-%m-%Y")
-#combining all 3 datasets into 1
-TN<-rbind(TN16, TN_split, TN19)
-
-TN$WS = as.character(TN$WS)
-TN$WS = as.numeric(TN$WS)
-
-
-
-
-
-###########################TN$Date=as.POSIXct(strptime(TN$Date, format= "%Y-%m-%d"))
-
-#converting the 5 value columns from factor to numeric
-#TN$WS = as.character(TN$WS)
-#TN$WS = as.numeric(TN$WS)
-
-#TN_split$WD = as.character(TN_split$WD)
-#TN_split$WD = as.numeric(TN_split$WD)
-#TN_split$Temp = as.character(TN_split$Temp)
-#TN_split$Temp = as.numeric(TN_split$Temp)
-#TN_split$BP<-NULL
-#TN_split$WD<-NULL
-#TN_split$Temp<-NULL
-#TN_split$RH<-NULL
-#TN_split$BP = as.character(TN_split$BP)
-#TN_split$BP = as.numeric(TN_split$BP)
-#TN_split$RH = as.character(TN_split$RH)
-#TN_split$RH = as.numeric(TN_split$RH)
-#converting the dataframe into a zoo object
-temp= zoo(TN %>% select(2), order.by = TN$Date)
+temp1= zoo(MH %>% select(2), order.by = MH$Date)
 #replacing the outliers and null values with locally smoothed values
-temp$WS <- tsclean(temp$WS)
+temp1$WS <- tsclean(temp1$WS)
 #agregating the hourly data to daily format in oder to make mid-term predictions successfully
-TN_ag= aggregate(temp, as.Date, mean)
-TN_ag[,1]=round(TN_ag[,1],digits = 2)
+MH_ag= aggregate(temp1, as.Date, mean)
+MH_ag[,1]=round(MH_ag[,1],digits = 2)
 
-TN.ts <- ts(TN_ag, start= c(2016, 06, 14), frequency=365)
-TN.df <- as.data.frame(TN_ag)
-write.table(TN.df, "C:/Users/HP/Downloads/Research Project/Data/TN_all.csv", sep=" ,", row.names=FALSE)
-autoplot(decompose(TN.ts))
-
-#plot(TN_aggregate)
-#TN_aggregate<- as.ts(TN_aggr)
-
+MH.ts <- ts(MH_ag, start= c(2016, 01, 01), frequency=365)
+MH.df <- as.data.frame(MH_ag)
+write.table(MH.df, "C:/Users/HP/Downloads/Research Project/Data/MH_all.csv", sep=" ,", row.names=FALSE)
+autoplot(decompose(MH.ts))
 #Dickey-Fuller test for Stationarity
-apply(TN.ts, 2, adf.test)
+apply(MH.ts, 2, adf.test)
 
-#As Temp, BP, RH are found to be non-stationary, so they are differenced
+#From the pvalue, it can be seen that the data is not stationary
 #install.packages("MTS")
 #library(MTS)
-#TN_aggregate_st= diffM(TN_aggregate)
-
+MH.ts= diff(MH.ts, 57)
+#differencing the time series dat to 57 times to make the data stationary
 #Retest for stationarity
-#apply(TN_aggregate_st, 2, adf.test)
+apply(MH.ts, 2, adf.test)
 
 #autoplot(decompose(TN_aggregate))
 
 #Ljung-Box Test for white noise
-Box.test(TN.ts, lag = 24, fitdf = 0, type = "Ljung")
+Box.test(MH.ts, lag = 24, fitdf = 0, type = "Ljung")
+
 
 # The pvalue very less than 0.05 suggests that the data is not white noise
 
 ggAcf(TN.ts)
 #The ACF plot confirms the same
+
+#Storing the lambda value for boxcox transformation
+MHlambda<-BoxCox.lambda(MH.ts)
+
+MH.df <- as.data.frame(MH.ts)
+write.table(MH.df, "C:/Users/HP/Downloads/Research Project/Data/MH_all.csv", sep=" ,", row.names=FALSE)
+
+
+############################ ARIMA ######################################
+
+
+MHarima <-auto.arima(ts(MH.ts,frequency=365),lambda=MHlambda)
+MHarima.forecast <-forecast(MHarima,h=90)
+autoplot(MHarima.forecast)
+#write.table(forecastedvalue, "C:/Users/nain/Documents/ARIMApredictedvalue.csv", sep=" ,", row.names=FALSE)
+MHarima.acc<-accuracy(MHarima.forecast)
+as.numeric(MHarima.forecast$mean)
+MHarima.res=MHarima$res
+squared.res.MHarima=MHarima.res^2
+par(mfcol=c(3,1))
+plot(squared.res.MHarima,main='Squared Residuals')
+acf.squared212=acf(squared.res.MHarima,main='ACF Squared
+                   Residuals',lag.max=100,ylim=c(-0.5,1))
+pacf.squared212=pacf(squared.res.MHarima,main='PACF Squared
+                     Residuals',lag.max=100,ylim=c(-0.5,1))
+
+
+
+
+####################### Neural Net ########################
+
+
+MHnn=nnetar(MH.ts, size = 20, repeats=30, lambda = MHlambda, scale.inputs=TRUE)
+
+MHnn.forecast=forecast(MHnn, h=90)
+MHnn.acc<-accuracy(MHnn.forecast)
+
+autoplot(MHnn.forecast)
+
+
+################### Simple Exponential Smoothening ####################
+
+MHses <- ses(MH.ts, h = 90, lambda = MHlambda)
+
+# checking the error rates to evaluate the model
+#summary(TNses.forecast)
+MHses.acc<-accuracy(MHses)
+
+# Add the one-step forecasts for the training data to the plot
+autoplot(MHses) + autolayer(fitted(MHses))
+
+########################## Prophet Model #############
+
+MH.temporal <- read.csv("MH_all.csv")
+#TN.temporal$ds=as.POSIXct(strptime(TN.temporal$ds, format= "%Y-%m-%d"))
+MH.prophet<-prophet(MH.temporal[1:1155,], growth = 'linear', seasonality.mode = 'additive', daily.seasonality=F)
+MH.prophetforecast <- predict(MH.prophet, MH.temporal[1156:1359,], type="response")
+
+#TN.prophet<-prophet(TN.temporal, growth = 'linear', seasonality.mode = 'additive')
+#TN.prophetforecast <- predict(TN.prophet, TN.temporal, type="response")
+
+####### Errors
+MHactual<- MH.temporal[1156:1359,2]
+
+
+rmse(MHactual, MH.prophetforecast$yhat)
+mase(MHactual, MH.prophetforecast$yhat)
+mae(MHactual, MH.prophetforecast$yhat)
+
+summary(MH.prophet) # from here it can be seen that there are 25 times where there were sudden changes in the contineuty of the data
+
+
+############## MLP #################
+
+MHmlp<-mlp(MH.ts, hd=20, sel.lag=T,retrain = T)
+MHmlp.forecast<-forecast(fit3,h=90)
+autoplot(MHmlp.forecast)
+MHmlp.acc<-accuracy(MHmlp.forecast)
+
+####################Dynamic Harmonic Regression###################
+
+#MHdhr<- auto.arima(MH_ag, xreg= fourier(MH_ag, K=1), seasonal = FALSE, lambda = 0)
+#summary(MHdhr) # checking the AICc value from summary of the fit model, the value of K is fixed with the minimum AICc value
+#MHdhr.forecast<-forecast(MHdhr, xreg= fourier(MH.ts, K=3, h=90))
+#MHdhr.acc<-accuracy(MHdhr.forecast)
+
+
+
