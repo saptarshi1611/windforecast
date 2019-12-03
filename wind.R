@@ -7,6 +7,7 @@
 #install.packages("ggplot2")
 #install.packages('prophet', type="source")
 #install.packages("nnfor")
+#install.packages("Metrics")
 library(nnfor)
 library(prophet)
 library(forecast)
@@ -114,13 +115,15 @@ TNlambda<-BoxCox.lambda(TN.ts)
 
 ############################ ARIMA ######################################
 
-
-TNarima <-auto.arima(ts(TN.ts,frequency=365),D=1,lambda=TNlambda)
+TNarima <-auto.arima(ts(TN.ts,frequency=365),D=0,lambda=TNlambda)
 TNarima.forecast <-forecast(TNarima,h=180)
 autoplot(TNarima.forecast)
 #write.table(forecastedvalue, "C:/Users/nain/Documents/ARIMApredictedvalue.csv", sep=" ,", row.names=FALSE)
 TNarima.acc<-accuracy(TNarima.forecast)
-as.numeric(forecastedvalue$mean)
+
+checkresiduals(TNarima)
+
+as.numeric(TNarima.forecast$mean)
 TNarima.res=TNarima$res
 squared.res.TNarima=TNarima.res^2
 par(mfcol=c(3,1))
@@ -132,38 +135,36 @@ pacf.squared212=pacf(squared.res.TNarima,main='PACF Squared
 
 #################### Recurrent Neural Network ########################
 #install.packages("rnn")
-library(rnn)
-library(quantmod)
+#library(rnn)
+#library(quantmod)
 
-TN.temporal <- read.csv("TN_all.csv")
+#TN.temporal <- read.csv("TN_all.csv")
 
 
-x=TN.temporal[,1]
+#x=TN.temporal[,1]
 
-y=TN.temporal[,2]
+#y=TN.temporal[,2]
 
-X=matrix(x, nrow=15)
-Y=matrix(y, nrow=15)
+#X=matrix(x, nrow=15)
+#Y=matrix(y, nrow=15)
 
-X=na.omit(X)
-Y=na.omit(Y)
+#X=na.omit(X)
+#Y=na.omit(Y)
 #standardize in the interval 0 - 1
-Yscaled= (Y - min(Y))/(max(Y) - min(Y))
-Y=t(Yscaled) # taking the transpose of Y
-train= 1:871
-test= 871:1245
+#Yscaled= (Y - min(Y))/(max(Y) - min(Y))
+#Y=t(Yscaled) # taking the transpose of Y
+#train= 1:871
+#test= 871:1245
 
-TN.rnn= trainr(temp,
-               learningrate = 0.05,
-               numepochs = 1000)
+#TN.rnn= trainr(temp,learningrate = 0.05,numepochs = 1000)
 
 
 ####################### Neural Net ########################
 
-
+set.seed(18127355)
 TNnn=nnetar(TN.ts, size = 20, repeats=30, lambda = TNlambda, scale.inputs=TRUE)
 
-TNnn.forecast=forecast(TNnn, h=90)
+TNnn.forecast=forecast(TNnn, h=180)
 TNnn.acc<-accuracy(TNnn.forecast)
 
 autoplot(TNnn.forecast)
@@ -171,7 +172,7 @@ autoplot(TNnn.forecast)
 
 ################### Simple Exponential Smoothening ####################
 
-TNses <- ses(TN.ts, h = 90, lambda = TNlambda)
+TNses <- ses(TN.ts, h = 180, lambda = TNlambda)
 
 # checking the error rates to evaluate the model
 #summary(TNses.forecast)
@@ -184,14 +185,14 @@ autoplot(TNses) + autolayer(fitted(TNses))
 
 TN.temporal <- read.csv("TN_all.csv")
 #TN.temporal$ds=as.POSIXct(strptime(TN.temporal$ds, format= "%Y-%m-%d"))
-TN.prophet<-prophet(TN.temporal[1:1204,], growth = 'linear', seasonality.mode = 'additive', daily.seasonality=F)
-TN.prophetforecast <- predict(TN.prophet, TN.temporal[1205:1416,], type="response")
+TN.prophet<-prophet(TN.temporal[1:1203,], growth = 'linear', seasonality.mode = 'additive', daily.seasonality=F)
+TN.prophetforecast <- predict(TN.prophet, TN.temporal[1204:1416,], type="response")
 
 #TN.prophet<-prophet(TN.temporal, growth = 'linear', seasonality.mode = 'additive')
 #TN.prophetforecast <- predict(TN.prophet, TN.temporal, type="response")
 
 ####### Errors
-TNactual<- TN.temporal[1205:1416,2]
+TNactual<- TN.temporal[1204:1416,2]
 
 
 rmse(TNactual, TN.prophetforecast$yhat)
@@ -216,10 +217,10 @@ summary(TN.prophet) # from here it can be seen that there are 25 times where the
 ############## MLP #################
 
 
-TNmlp<-mlp(TN.ts, hd=20, sel.lag=T,retrain = T)
-TNmlp.forecast<-forecast(fit3,h=90)
-autoplot(forecastfit)
-TNmlp.acc<-accuracy(forecastfit)
+TNmlp<-mlp(TN.ts, hd=20, sel.lag=T,retrain = T, reps=30)
+TNmlp.forecast<-forecast(TNmlp,h=180)
+autoplot(TNmlp.forecast)
+TNmlp.acc<-accuracy(TNmlp.forecast)
 
 
 
@@ -264,18 +265,22 @@ temp1$WS <- tsclean(temp1$WS)
 MH_ag= aggregate(temp1, as.Date, mean)
 MH_ag[,1]=round(MH_ag[,1],digits = 2)
 
-MH.ts <- ts(MH_ag, start= c(2016, 01, 01), frequency=365)
-MH.df <- as.data.frame(MH_ag)
-write.table(MH.df, "C:/Users/HP/Downloads/Research Project/Data/MH_all.csv", sep=" ,", row.names=FALSE)
+MH.ts <- ts(MH_ag, start= c(2016, 01, 01),  frequency=365)
+
+#MH.df <- as.data.frame(MH_ag)
+#write.table(MH.df, "C:/Users/HP/Downloads/Research Project/Data/MH_all.csv", sep=" ,", row.names=FALSE)
 autoplot(decompose(MH.ts))
 #Dickey-Fuller test for Stationarity
 apply(MH.ts, 2, adf.test)
 
+
 #From the pvalue, it can be seen that the data is not stationary
 #install.packages("MTS")
 #library(MTS)
-MH.ts= diff(MH.ts, 57)
-#differencing the time series dat to 57 times to make the data stationary
+MH.ts= diff(MH.ts,2)
+
+
+#differencing the time series data 2 times to make the data stationary
 #Retest for stationarity
 apply(MH.ts, 2, adf.test)
 
@@ -287,7 +292,7 @@ Box.test(MH.ts, lag = 24, fitdf = 0, type = "Ljung")
 
 # The pvalue very less than 0.05 suggests that the data is not white noise
 
-ggAcf(TN.ts)
+ggAcf(MH.ts)
 #The ACF plot confirms the same
 
 #Storing the lambda value for boxcox transformation
@@ -300,10 +305,10 @@ write.table(MH.df, "C:/Users/HP/Downloads/Research Project/Data/MH_all.csv", sep
 ############################ ARIMA ######################################
 
 
-MHarima <-auto.arima(ts(MH.ts,frequency=365),lambda=MHlambda)
+MHarima <-auto.arima(ts(MH.ts,frequency=365),D=0,lambda=MHlambda)
 MHarima.forecast <-forecast(MHarima,h=90)
 autoplot(MHarima.forecast)
-#write.table(forecastedvalue, "C:/Users/nain/Documents/ARIMApredictedvalue.csv", sep=" ,", row.names=FALSE)
+
 MHarima.acc<-accuracy(MHarima.forecast)
 as.numeric(MHarima.forecast$mean)
 MHarima.res=MHarima$res
@@ -355,8 +360,12 @@ MHactual<- MH.temporal[1156:1359,2]
 
 
 rmse(MHactual, MH.prophetforecast$yhat)
-mase(MHactual, MH.prophetforecast$yhat)
+#mase(MHactual, MH.prophetforecast$yhat)
 mae(MHactual, MH.prophetforecast$yhat)
+
+rsq <- function (x, y) cor(x, y) ^ 2
+
+rsq(MHactual, MH.prophetforecast$yhat)
 
 summary(MH.prophet) # from here it can be seen that there are 25 times where there were sudden changes in the contineuty of the data
 
@@ -370,10 +379,16 @@ MHmlp.acc<-accuracy(MHmlp.forecast)
 
 ####################Dynamic Harmonic Regression###################
 
-#MHdhr<- auto.arima(MH_ag, xreg= fourier(MH_ag, K=1), seasonal = FALSE, lambda = 0)
-#summary(MHdhr) # checking the AICc value from summary of the fit model, the value of K is fixed with the minimum AICc value
-#MHdhr.forecast<-forecast(MHdhr, xreg= fourier(MH.ts, K=3, h=90))
-#MHdhr.acc<-accuracy(MHdhr.forecast)
+
+#TNdhr<- auto.arima(TN.ts, xreg= fourier(TN.ts, K=3), seasonal = FALSE, lambda = 0)
+test<-MH.ts
+test[,1]<-(test[,1]+1)
+
+MHdhr<- auto.arima(MH.ts, xreg= fourier(MH.ts, K=1), seasonal = FALSE, lambda = 0)
+MHdhr<- auto.arima(test, xreg= fourier(test, K=5), seasonal = FALSE, lambda = 0)
+summary(MHdhr) # checking the AICc value from summary of the fit model, the value of K is fixed with the minimum AICc value
+MHdhr.forecast<-forecast(MHdhr, xreg= fourier(MH.ts, K=5, h=90))
+MHdhr.acc<-accuracy(MHdhr.forecast)
 
 
 
