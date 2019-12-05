@@ -20,7 +20,6 @@ library(ggplot2)
 library(xlsx)
 library(tidyr)
 library(dplyr)
-
 setwd("C:/Users/HP/Downloads/Research Project/Data")
 
 
@@ -35,10 +34,7 @@ TN$WS = as.numeric(TN$WS)
 temp= zoo(TN %>% select(2), order.by = TN$Date)
 #replacing the outliers and null values with locally smoothed values
 temp$WS <- tsclean(temp$WS)
-#temp$WD <- tsclean(temp$WD)
-#temp$Temp <- tsclean(temp$Temp)
-#temp$BP <- tsclean(temp$BP)
-#temp$RH <- tsclean(temp$RH)
+
 #agregating the hourly data to daily format in oder to make mid-term predictions successfully
 TN_ag= aggregate(temp, as.Date, mean)
 TN_ag[,1]=round(TN_ag[,1],digits = 2)
@@ -64,7 +60,8 @@ Box.test(TN.ts, lag = 24, fitdf = 0, type = "Ljung")
 
 # The pvalue very less than 0.05 suggests that the data is not white noise
 
-#TN.train<-window(TN.ts,start=2016,end=c(2019,109))
+#spliting 85% of the original data for training the models
+TN.train<-window(TN.ts,start=2016,end=c(2019,109))
 #TN.test<-window(TN.ts, start=c(2019,110))
 
 #Storing the lambda value for boxcox transformation
@@ -74,43 +71,32 @@ TNlambda<-BoxCox.lambda(TN.train)
 
 ############################ ARIMA ######################################
 
-TNarima <-auto.arima(ts(diff(TN.ts,1),frequency=365),D=0,lambda=TNlambda)
-TNarima.forecast <-forecast(TNarima,h=180)
+TNarima <-auto.arima(ts(TN.train,frequency=365),D=0,lambda=TNlambda)
+TNarima.forecast <-forecast(TNarima,h=212)
 autoplot(TNarima.forecast)
 
 TNarima.acc<-as.data.frame(accuracy(TNarima.forecast))
-
-as.numeric(TNarima.forecast$mean)
-TNarima.res=TNarima$res
-squared.res.TNarima=TNarima.res^2
-par(mfcol=c(3,1))
-plot(squared.res.TNarima,main='Squared Residuals')
-acf.squared212=acf(squared.res.TNarima,main='ACF Squared
-                   Residuals',lag.max=100,ylim=c(-0.5,1))
-pacf.squared212=pacf(squared.res.TNarima,main='PACF Squared
-                     Residuals',lag.max=100,ylim=c(-0.5,1))
-
 
 
 ####################### Neural Net ########################
 
 set.seed(18127355)
-TNnn=nnetar(TN.ts,size =16,repeats=30, lambda = TNlambda, scale.inputs=TRUE)
-TNnn.forecast=forecast(TNnn, h=180)
+TNnn=nnetar(TN.train,size =16,repeats=30, lambda = TNlambda, scale.inputs=TRUE)
+TNnn.forecast=forecast(TNnn, h=212)
 TNnn.acc<-data.frame(accuracy(TNnn.forecast))
 
 autoplot(TNnn.forecast)
 
 ################### Simple Exponential Smoothening ####################
 
-TNses <- ses(TN.ts, h = 180, lambda = TNlambda)
+TNses <- ses(TN.train, h = 212, lambda = TNlambda)
 
 # checking the error rates to evaluate the model
 #summary(TNses.forecast)
 TNses.acc<-data.frame(accuracy(TNses))
-checkresiduals(TNses)
+
 # Add the one-step forecasts for the training data to the plot
-autoplot(TN.ts) + autolayer(fitted(TNses), series = "ses")
+autoplot(TN.train) + autolayer(fitted(TNses), series = "ses")
 
 ########################## Prophet Model #############
 library(Metrics)
@@ -134,13 +120,11 @@ summary(TN.prophet) # from here it can be seen that there are 25 times where the
 detach("package:Metrics", unload = TRUE)
 
 
-
-
 ####################Dynamic Harmonic Regression###################
 
-TNdhr<- auto.arima(TN.ts, xreg= fourier(TN.ts, K=3), seasonal = FALSE, lambda = 0)
+TNdhr<- auto.arima(TN.train, xreg= fourier(TN.train, K=3), seasonal = FALSE, lambda = 0)
 summary(TNdhr) # checking the AICc value from summary of the fit model, the value of K is fixed with the minimum AICc value
-TNdhr.forecast<-forecast(TNdhr, xreg= fourier(TN.ts, K=3, h=90))
+TNdhr.forecast<-forecast(TNdhr, xreg= fourier(TN.ts, K=3, h=212))
 TNdhr.acc<-accuracy(TNdhr.forecast)
 
 
@@ -198,45 +182,33 @@ apply(MH.ts, 2, adf.test)
 
 #Ljung-Box Test for white noise
 Box.test(MH.ts, lag = 24, fitdf = 0, type = "Ljung")
-
-
 # The pvalue very less than 0.05 suggests that the data is not white noise
-
+#spliting 85% of the original data for training the models
+MH.train<-window(MH.ts,start=2016,end=c(2019,109))
 #Storing the lambda value for boxcox transformation
-MHlambda<-BoxCox.lambda(MH.ts)
+MHlambda<-BoxCox.lambda(MH.train)
 
 MH.df <- as.data.frame(MH.ts)
 write.table(MH.df, "C:/Users/HP/Downloads/Research Project/Data/MH_all.csv", sep=" ,", row.names=FALSE)
 
 
+
 ############################ ARIMA ######################################
 
 
-MHarima <-auto.arima(ts(MH.ts,frequency=365),D=0, lambda=MHlambda)
+MHarima <-auto.arima(ts(MH.train,frequency=365),D=0, lambda=MHlambda)
 checkresiduals(MHarima)
 #by looking at the residuals, it can be seen that it is white noise, so the model is a fit
-MHarima.forecast <-forecast(MHarima,h=180)
+MHarima.forecast <-forecast(MHarima,h=212)
 autoplot(MHarima.forecast)
 summary(MHarima)
 MHarima.acc<-accuracy(MHarima.forecast)
-as.numeric(MHarima.forecast$mean)
-MHarima.res=MHarima$res
-squared.res.MHarima=MHarima.res^2
-par(mfcol=c(3,1))
-plot(squared.res.MHarima,main='Squared Residuals')
-acf.squared212=acf(squared.res.MHarima,main='ACF Squared
-                   Residuals',lag.max=100,ylim=c(-0.5,1))
-pacf.squared212=pacf(squared.res.MHarima,main='PACF Squared
-                     Residuals',lag.max=100,ylim=c(-0.5,1))
-
-
-
 
 ####################### Neural Net ########################
 set.seed(18127355)
-MHnn=nnetar(MH.ts, size =20 ,repeats=90, lambda = MHlambda, scale.inputs=TRUE)
+MHnn=nnetar(MH.train, size =20 ,repeats=90, lambda = MHlambda, scale.inputs=TRUE)
 
-MHnn.forecast=forecast(MHnn, h=180)
+MHnn.forecast=forecast(MHnn, h=212)
 
 MHnn.acc<-accuracy(MHnn.forecast)
 
@@ -245,15 +217,14 @@ autoplot(MHnn.forecast)
 
 ################### Simple Exponential Smoothening ####################
 
-MHses <- ses(MH.ts, h = 180, lambda = MHlambda)
+MHses <- ses(MH.train, h = 212, lambda = MHlambda)
 
 # checking the error rates to evaluate the model
 #summary(TNses.forecast)
 MHses.acc<-accuracy(MHses)
 
 # Add the one-step forecasts for the training data to the plot
-#autoplot(MHses) + autolayer(fitted(MHses))
-autoplot(MH.ts) + autolayer(fitted(MHses), series = "ses")
+autoplot(MH.train) + autolayer(fitted(MHses), series = "ses")
 ########################## Prophet Model #############
 library(Metrics)
 MH.temporal <- read.csv("MH_all.csv")
@@ -264,19 +235,15 @@ MH.prophetforecast <- predict(MH.prophet, MH.temporal[1205:1416,], type="respons
 MHactual<- MH.temporal[1205:1416,2]
 
 MHprophet.acc<-data.frame(rmse=rmse(MHactual, MH.prophetforecast$yhat), mae=mae(MHactual, MH.prophetforecast$yhat), mape=mape(MHactual, MH.prophetforecast$yhat))
-#rmse(MHactual, MH.prophetforecast$yhat)
-#mape(MHactual, MH.prophetforecast$yhat)
-#mae(MHactual, MH.prophetforecast$yhat)
 summary(MH.prophet) # from here it can be seen that there are 25 times where there were sudden changes in the contineuty of the data
 detach("package:Metrics", unload = TRUE)
 
 
 ####################Dynamic Harmonic Regression###################
 
-
-MHdhr<- auto.arima(MH.ts, xreg= fourier(MH.ts, K=4), seasonal = FALSE, lambda = 0)
+MHdhr<- auto.arima(MH.train, xreg= fourier(MH.train, K=1), seasonal = FALSE, lambda = 0)
 summary(MHdhr) # checking the AICc value from summary of the fit model, the value of K is fixed with the minimum AICc value
-MHdhr.forecast<-forecast(MHdhr, xreg= fourier(MH.ts, K=4, h=180))
+MHdhr.forecast<-forecast(MHdhr, xreg= fourier(MH.ts, K=1, h=212))
 MHdhr.acc<-accuracy(MHdhr.forecast)
 
 ############################################################################################################
@@ -289,5 +256,4 @@ Maharashtra[3,2:4] <- MHses.acc[1,c(2,3,5)]
 Maharashtra[4,2:4] <- MHprophet.acc[1,1:3]
 Maharashtra[5,2:4] <- MHdhr.acc[1,c(2,3,5)]
 write.table(Maharashtra, "C:/Users/HP/Downloads/Research Project/Data/MH_accuracy.csv", sep=" ,", row.names=FALSE)
-
 
