@@ -69,42 +69,47 @@ TN.train<-window(TN.ts,start=2016,end=c(2019,109))
 TNlambda<-BoxCox.lambda(TN.train)
 
 
-############################ ARIMA ######################################
+######################################## ARIMA ##########################################
 
-TNarima <-auto.arima(ts(TN.train,frequency=365),D=0,lambda=TNlambda)
+TNarima <-auto.arima(TN.train,D=0,lambda=TNlambda,seasonal = F,stationary=T, 
+                     stepwise=F, trace=F, approximation=F, biasadj=T)
+##Forecast with model
 TNarima.forecast <-forecast(TNarima,h=212)
+##Plot the forecast
 autoplot(TNarima.forecast)
-
+##Accuracy store
 TNarima.acc<-as.data.frame(accuracy(TNarima.forecast))
 
 
-####################### Neural Net ########################
+#################################### Neural Net ###########################################
 
 set.seed(18127355)
-TNnn=nnetar(TN.train,size =16,repeats=30, lambda = TNlambda, scale.inputs=TRUE)
+TNnn=nnetar(TN.train,P=3,size =16,repeats=30, lambda = TNlambda, scale.inputs=T)
 TNnn.forecast=forecast(TNnn, h=212)
 TNnn.acc<-data.frame(accuracy(TNnn.forecast))
 
 autoplot(TNnn.forecast)
 
-################### Simple Exponential Smoothening ####################
+########################## Simple Exponential Smoothening ################################
 
-TNses <- ses(TN.train, h = 212, lambda = TNlambda)
+TNses <- ses(TN.train, h = 212, lambda = TNlambda, initial="optimal", biasadj=F)
 
 # checking the error rates to evaluate the model
-#summary(TNses.forecast)
 TNses.acc<-data.frame(accuracy(TNses))
 
 # Add the one-step forecasts for the training data to the plot
 autoplot(TN.train) + autolayer(fitted(TNses), series = "ses")
 
-########################## Prophet Model #############
+################################ Prophet Model ##############################################
+
 library(Metrics)
 TN.temporal <- read.csv("TN_all.csv")
-#TN.temporal$ds=as.POSIXct(strptime(TN.temporal$ds, format= "%Y-%m-%d"))
-TN.prophet<-prophet(TN.temporal[1:1203,], growth = 'linear', seasonality.mode = 'additive', daily.seasonality=F)
-TN.prophetforecast <- predict(TN.prophet, TN.temporal[1205:1416,], type="response")
+TN.prophet<-prophet(TN.temporal[1:1204,], growth = 'linear', changepoints = NULL,
+                    seasonality.mode = 'additive', daily.seasonality=F, fit = T)
+TNfuture <- make_future_dataframe(TN.prophet, periods = 212)
+TN.prophetforecast <- predict(TN.prophet, TNfuture, type="response")
 
+dyplot.prophet(TN.prophet, TN.prophetforecast)
 
 ####### Errors
 
@@ -112,17 +117,13 @@ TNactual<- TN.temporal[1205:1416,2]
 
 TNprophet.acc<-data.frame(rmse=rmse(TNactual, TN.prophetforecast$yhat), mae=mae(TNactual, TN.prophetforecast$yhat), mape=mape(TNactual, TN.prophetforecast$yhat))
 
-#rmse(TNactual, TN.prophetforecast$yhat)
-#mase(TNactual, TN.prophetforecast$yhat)
-#mae(TNactual, TN.prophetforecast$yhat)
-
-summary(TN.prophet) # from here it can be seen that there are 25 times where there were sudden changes in the contineuty of the data
 detach("package:Metrics", unload = TRUE)
 
 
 ####################Dynamic Harmonic Regression###################
 
-TNdhr<- auto.arima(TN.train, xreg= fourier(TN.train, K=3), seasonal = FALSE, lambda = 0)
+TNdhr<- auto.arima(TN.train, xreg= fourier(TN.train, K=3), seasonal = F, lambda = 0, 
+                   stepwise=F, trace=F, approximation=F, biasadj=T)
 summary(TNdhr) # checking the AICc value from summary of the fit model, the value of K is fixed with the minimum AICc value
 TNdhr.forecast<-forecast(TNdhr, xreg= fourier(TN.ts, K=3, h=212))
 TNdhr.acc<-accuracy(TNdhr.forecast)
@@ -130,21 +131,21 @@ TNdhr.acc<-accuracy(TNdhr.forecast)
 
 ############################################################################################################
 ############### Accuracy Table ######################
-TamilNadu <- data.frame("Models" = c("ARIMA","NN", "SES", "PROPHET", "DHR"), "RMSE" =0, "MAE" =0, "MAPE"=0)
+TN.evaluation_table <- data.frame("Models" = c("ARIMA","NN", "SES", "PROPHET", "DHR"), "RMSE" =0, "MAE" =0, "MAPE"=0)
 
 
-TamilNadu[1,2:4]<-TNarima.acc[1,c(2,3,5)]
-TamilNadu[2,2:4] <- TNnn.acc[1,c(2,3,5)]
-TamilNadu[3,2:4] <- TNses.acc[1,c(2,3,5)]
-TamilNadu[4,2:4] <- TNprophet.acc[1,1:3]
-TamilNadu[5,2:4] <- TNdhr.acc[1,c(2,3,5)]
+TN.evaluation_table[1,2:4]<-TNarima.acc[1,c(2,3,5)]
+TN.evaluation_table[2,2:4] <- TNnn.acc[1,c(2,3,5)]
+TN.evaluation_table[3,2:4] <- TNses.acc[1,c(2,3,5)]
+TN.evaluation_table[4,2:4] <- TNprophet.acc[1,1:3]
+TN.evaluation_table[5,2:4] <- TNdhr.acc[1,c(2,3,5)]
 write.table(TamilNadu, "C:/Users/HP/Downloads/Research Project/Data/TN_accuracy.csv", sep=" ,", row.names=FALSE)
 
 ######################################################################################################################
 ###################################################################################################################################
 #############################################################################################################################
 ##########################################################################################################################
-###########################################   Maharashtra     ##############################################################################
+###########################################    Maharashtra     ##############################################################################
 #################################################################################################################################
 #########################################################################################################################
 ###############################################################################################################################
@@ -195,8 +196,8 @@ write.table(MH.df, "C:/Users/HP/Downloads/Research Project/Data/MH_all.csv", sep
 
 ############################ ARIMA ######################################
 
-
-MHarima <-auto.arima(ts(MH.train,frequency=365),D=0, lambda=MHlambda)
+MHarima <-auto.arima(MH.train,D=0,lambda=MHlambda, stationary = T,
+                     seasonal = F, stepwise=F, trace=F, approximation=F, biasadj=F)
 checkresiduals(MHarima)
 #by looking at the residuals, it can be seen that it is white noise, so the model is a fit
 MHarima.forecast <-forecast(MHarima,h=212)
@@ -206,7 +207,7 @@ MHarima.acc<-accuracy(MHarima.forecast)
 
 ####################### Neural Net ########################
 set.seed(18127355)
-MHnn=nnetar(MH.train, size =20 ,repeats=90, lambda = MHlambda, scale.inputs=TRUE)
+MHnn=nnetar(MH.train,P=3,size =16,repeats=30, lambda = MHlambda, scale.inputs=TRUE)
 
 MHnn.forecast=forecast(MHnn, h=212)
 
@@ -217,10 +218,10 @@ autoplot(MHnn.forecast)
 
 ################### Simple Exponential Smoothening ####################
 
-MHses <- ses(MH.train, h = 212, lambda = MHlambda)
+MHses <- ses(MH.train, h = 212, lambda = MHlambda, initial="optimal", biasadj=F)
 
 # checking the error rates to evaluate the model
-#summary(TNses.forecast)
+
 MHses.acc<-accuracy(MHses)
 
 # Add the one-step forecasts for the training data to the plot
@@ -228,32 +229,61 @@ autoplot(MH.train) + autolayer(fitted(MHses), series = "ses")
 ########################## Prophet Model #############
 library(Metrics)
 MH.temporal <- read.csv("MH_all.csv")
-MH.prophet<-prophet(MH.temporal[1:1204,], growth = 'linear', seasonality.mode = 'additive', daily.seasonality=F)
-MH.prophetforecast <- predict(MH.prophet, MH.temporal[1205:1416,], type="response")
+
+MH.prophet<-prophet(MH.temporal[1:1204,], growth = 'linear', changepoints = NULL, seasonality.mode = 'additive', daily.seasonality=F,fit = T)
+MHfuture <- make_future_dataframe(MH.prophet, periods = 212)
+MH.prophetforecast <- predict(MH.prophet, MHfuture, type="response")
+
+dyplot.prophet(MH.prophet, MH.prophetforecast)
 
 ####### Errors
 MHactual<- MH.temporal[1205:1416,2]
 
 MHprophet.acc<-data.frame(rmse=rmse(MHactual, MH.prophetforecast$yhat), mae=mae(MHactual, MH.prophetforecast$yhat), mape=mape(MHactual, MH.prophetforecast$yhat))
-summary(MH.prophet) # from here it can be seen that there are 25 times where there were sudden changes in the contineuty of the data
 detach("package:Metrics", unload = TRUE)
 
 
 ####################Dynamic Harmonic Regression###################
 
-MHdhr<- auto.arima(MH.train, xreg= fourier(MH.train, K=1), seasonal = FALSE, lambda = 0)
+MHdhr<- auto.arima(MH.train, xreg= fourier(MH.train, K=1), seasonal = F, lambda = 0, stationary = T,
+                  stepwise=F, trace=F, approximation=F, biasadj=T)
 summary(MHdhr) # checking the AICc value from summary of the fit model, the value of K is fixed with the minimum AICc value
 MHdhr.forecast<-forecast(MHdhr, xreg= fourier(MH.ts, K=1, h=212))
 MHdhr.acc<-accuracy(MHdhr.forecast)
 
 ############################################################################################################
 ############### Accuracy Table ######################
-Maharashtra <- data.frame("Models" = c("ARIMA","NN", "SES", "PROPHET", "DHR"), "RMSE" =0, "MAE" =0, "MAPE"=0)
+MH.evaluation_table <- data.frame("Models" = c("ARIMA","NN", "SES", "PROPHET", "DHR"), "RMSE" =0, "MAE" =0, "MAPE"=0)
 
-Maharashtra[1,2:4] <- MHarima.acc[1,c(2,3,5)]
-Maharashtra[2,2:4] <- MHnn.acc[1,c(2,3,5)]
-Maharashtra[3,2:4] <- MHses.acc[1,c(2,3,5)]
-Maharashtra[4,2:4] <- MHprophet.acc[1,1:3]
-Maharashtra[5,2:4] <- MHdhr.acc[1,c(2,3,5)]
-write.table(Maharashtra, "C:/Users/HP/Downloads/Research Project/Data/MH_accuracy.csv", sep=" ,", row.names=FALSE)
+MH.evaluation_table[1,2:4] <- MHarima.acc[1,c(2,3,5)]
+MH.evaluation_table[2,2:4] <- MHnn.acc[1,c(2,3,5)]
+MH.evaluation_table[3,2:4] <- MHses.acc[1,c(2,3,5)]
+MH.evaluation_table[4,2:4] <- MHprophet.acc[1,1:3]
+MH.evaluation_table[5,2:4] <- MHdhr.acc[1,c(2,3,5)]
+write.table(MH.evaluation_table, "C:/Users/HP/Downloads/Research Project/Data/MH_accuracy.csv", sep=" ,", row.names=FALSE)
+
+#################################################################################################################################################
+##########################################################################################################################
+######################################## Forecasting Wind power
+
+#NN performed the best in handling both the location's wind speed data and forecasting it
+#so now 180 days of future wind speed will be forecasted by NN
+
+TNfit=nnetar(TN.ts,P=3,size =16 ,repeats=30, lambda = TNlambda, scale.inputs=T)
+TNWS.forecast=forecast(TNfit, h=180)
+
+MHfit=nnetar(MH.ts,P=3,size =16 ,repeats=30, lambda = MHlambda, scale.inputs=TRUE)
+MHWS.forecast=forecast(MHfit, h=180)
+
+##########Theoritically Calculating Wind Power with probable parameter values
+#WP=0.5*Cp*q*A*V^3 
+#[Cp=Max power coefficient(theoretical max-> 0.59)]
+#[q=air density(1.25kg/m^3 at sea level)] 
+#[A=Swept area of the rotor (largest rotor used in India for commercial onshore turbines are of 60m, so swept area=12470m^2) ]
+#[V=Wind Speed(m/s), which in this case have been forecasted]
+FutureWP<-data.frame("TNWP"=(0.5 * 0.59 * 1.25 * 2827.44* TNWS.forecast$mean^3), "MHWP"=(0.5 * 0.59 * 1.25 * 2827.44 * MHWS.forecast$mean^3))
+
+write.table(FutureWP, "C:/Users/HP/Downloads/Research Project/Data/Future_WP.csv", sep=" ,", row.names=FALSE)
+
+#autoplot(as.ts(FutureWP, start=c(2019, 11, 17), frequency=365))+ggtitle("Future Wind Power Produced in the 2 States") +xlab("Time") +ylab("MW")
 
