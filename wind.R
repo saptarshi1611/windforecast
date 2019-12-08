@@ -59,7 +59,6 @@ apply(TN.ts, 2, adf.test) #tseries
 #Ljung-Box Test for white noise
 Box.test(TN.ts, lag = 24, fitdf = 0, type = "Ljung")
 
-
 # The pvalue very less than 0.05 suggests that the data is not white noise
 
 #spliting 75% of the original data for training the models
@@ -73,19 +72,17 @@ ggqqplot(TN.df$y)+
 shapiro.test(TN.df$y) 
 ##though from the qqplot the data seems a bit non-linear, but from the 
 #p value <0.05 of Shapiro-Wilk normality test, it can be said that the data is normally distributed
-
 #As the data is normally distributed, BoxCox transformation is not required
-#TNlambda<-BoxCox.lambda(Tamil$train)
 
 
 ######################################## ARIMA ##########################################
 
 TNarima <-auto.arima(Tamil$train,lambda=NULL,stationary=T, 
-                     stepwise=F, trace=T, approximation=F, biasadj=F)
+                     stepwise=F, trace=F, approximation=F, biasadj=F)
 ##Forecast with model
 TNarima.forecast <-forecast(TNarima,h=354)
 ##Plot the forecast
-autoplot(TNarima.forecast) + ylab("Wind Speed")
+autoplot(TNarima.forecast) + ylab("Wind Speed") 
 ##Accuracy store
 TNarima.acc<-as.data.frame(accuracy(TNarima.forecast))
 checkresiduals(TNarima)
@@ -110,10 +107,10 @@ TNses.acc<-data.frame(accuracy(TNses))
 autoplot(Tamil$train) + autolayer(fitted(TNses), series = "ses") + ylab("Wind Speed")
 
 ################################ Prophet Model ##############################################
-
 library(Metrics)
 TN.temporal <- read.csv("TN_all.csv")
-TN.prophet<-prophet(TN.temporal[1:1062,], growth = 'linear', changepoints = NULL,
+
+TN.prophet<-prophet(TN.temporal[1:1062,], growth = 'linear', changepoints =c("2016-12-12"),
                     seasonality.mode = 'additive', daily.seasonality=F, fit = T)
 TNfuture <- make_future_dataframe(TN.prophet, periods = 354)
 TN.prophetforecast <- predict(TN.prophet, TNfuture, type="response")
@@ -124,6 +121,7 @@ dyplot.prophet(TN.prophet, TN.prophetforecast)
 
 TNactual<- TN.temporal[1063:1416,2]
 
+
 TNprophet.acc<-data.frame(rmse=rmse(TNactual, TN.prophetforecast$yhat), mae=mae(TNactual, TN.prophetforecast$yhat), mape=mape(TNactual, TN.prophetforecast$yhat))
 
 detach("package:Metrics", unload = TRUE)
@@ -132,12 +130,14 @@ detach("package:Metrics", unload = TRUE)
 ####################Dynamic Harmonic Regression###################
 
 TNdhr<- auto.arima(Tamil$train, xreg= fourier(Tamil$train, K=3), lambda = 0, 
-                   stepwise=F, trace=T, approximation=F, biasadj=F)
+                   stepwise=F, trace=F, approximation=F, biasadj=F)
+
 summary(TNdhr) # checking the AICc value from summary of the fit model, the value of K is fixed with the minimum AICc value
 TNdhr.forecast<-forecast(TNdhr, xreg= fourier(TN.ts, K=3, h=354))
 TNdhr.acc<-accuracy(TNdhr.forecast)
 
 autoplot(TNdhr.forecast) + ylab("Wind Speed")
+
 ############################################################################################################
 ############### Accuracy Table ######################
 TN.evaluation_table <- data.frame("Models" = c("ARIMA","NN", "SES", "PROPHET", "DHR"), "RMSE" =0, "MAE" =0, "MAPE"=0)
@@ -209,9 +209,6 @@ shapiro.test(MH.df$y)
 #p value <0.05 of Shapiro-Wilk normality test, it can be said that the data is normally distributed
 
 #As the data is normally distributed, BoxCox transformation is not required
-#MHlambda<-BoxCox.lambda(Maharashtra$train)
-
-
 
 
 ############################ ARIMA ######################################
@@ -287,18 +284,22 @@ write.table(MH.evaluation_table, "C:/Users/HP/Downloads/Research Project/Data/MH
 
 #################################################################################################################################################
 ##########################################################################################################################
-######################################## Forecasting Wind power
+######################################## Forecasting Wind power########################################################
 
 #NN performed the best in handling both the location's wind speed data and forecasting it
 #so now 180 days of future wind speed will be forecasted by NN
 
-TNfit=nnetar(TN.ts,P=3,size =20 ,repeats=270, lambda = TNlambda, scale.inputs=T)
+TNfit=nnetar(TN.ts,p=41,P=3,size = 19,repeats=50, lambda = TNlambda, scale.inputs=T)
 TNWS.forecast=forecast(TNfit, h=180)
-
-MHfit=nnetar(MH.ts,P=3,size =30 ,repeats=270, lambda = MHlambda, scale.inputs=TRUE)
+  
+MHfit=nnetar(MH.ts,p=41,P=3,size =19 ,repeats=50, lambda = MHlambda, scale.inputs=TRUE)
 MHWS.forecast=forecast(MHfit, h=180)
 
+########################################################################################################################
+
 ##########Theoritically Calculating Wind Power with probable parameter values
+
+##############################################################################################################
 #WP=0.5*Cp*q*A*V^3 
 #[Cp=Max power coefficient(theoretical max-> 0.59)]
 #[q=air density(1.25kg/m^3 at sea level)] 
