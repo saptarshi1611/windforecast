@@ -56,8 +56,8 @@ autoplot(decompose(MH.ts))
 autoplot(MH.ts) +
   ggtitle("Wind Speed data of Maharashtra(2016-2019)") +
   xlab("Year") +
-  ylab("Meter/Second")
-
+  ylab("Wind Speed(m/sec)")
++
 #Dickey-Fuller test for Stationarity
 apply(MH.ts, 2, adf.test)
 
@@ -89,7 +89,7 @@ checkresiduals(MHarima)
 
 #by looking at the residuals, it can be seen that it is white noise, so the model is a fit
 MHarima.forecast <-forecast(MHarima,h=354)
-autoplot(MHarima.forecast) + ylab("Wind Speed")
+autoplot(MHarima.forecast) + ylab("Wind Speed(m/sec)")
 
 MHarima.acc<-accuracy(MHarima.forecast)
 
@@ -101,7 +101,7 @@ MHnn.forecast=forecast(MHnn, h=354)
 
 MHnn.acc<-accuracy(MHnn.forecast)
 
-autoplot(MHnn.forecast) + ylab("Wind Speed")
+autoplot(MHnn.forecast) + ylab("Wind Speed(m/sec)")
 
 
 ################### Simple Exponential Smoothening ##########################################
@@ -113,7 +113,7 @@ MHses <- ses(Maharashtra$train, h = 354, lambda = NULL, initial="optimal", biasa
 MHses.acc<-accuracy(MHses)
 
 # Add the one-step forecasts for the training data to the plot
-autoplot(Maharashtra$train) + autolayer(fitted(MHses), series = "ses") + ylab("Wind Speed")
+autoplot(Maharashtra$train) + autolayer(fitted(MHses), series = "ses") + ylab("Wind Speed(m/sec)")
 
 ########################## Prophet Model #############################################################
 library(Metrics)
@@ -140,7 +140,7 @@ summary(MHdhr) # checking the AICc value from summary of the fit model, the valu
 MHdhr.forecast<-forecast(MHdhr, xreg= fourier(MH.ts, K=1, h=354))
 MHdhr.acc<-accuracy(MHdhr.forecast)
 checkresiduals(MHdhr)
-autoplot(MHdhr.forecast) + ylab("Wind Speed")
+autoplot(MHdhr.forecast) + ylab("Wind Speed(m/sec)")
 
 ############################################################################################################
 ############### Accuracy Table ######################
@@ -219,7 +219,7 @@ TNarima <-auto.arima(Tamil$train,lambda=NULL,stationary=T,
 ##Forecast with model
 TNarima.forecast <-forecast(TNarima,h=354)
 ##Plot the forecast
-autoplot(TNarima.forecast) + ylab("Wind Speed") 
+autoplot(TNarima.forecast) + ylab("Wind Speed(m/sec)") 
 ##Accuracy store
 TNarima.acc<-as.data.frame(accuracy(TNarima.forecast))
 checkresiduals(TNarima)
@@ -229,7 +229,7 @@ checkresiduals(TNarima)
 TNnn=nnetar(Tamil$train,p=41,P=2,size=19, repeats=50, lambda = NULL, scale.inputs=F)
 
 TNnn.forecast=forecast(TNnn, PI=F,h=354)
-TNnn.acc<-data.frame(accuracy(TNnn.forecast))
+TNnn.acc<-data.frame(accuracy(TNnn.forecast(m/sec)))
 
 autoplot(TNnn.forecast) + ylab("Wind Speed")
 
@@ -241,7 +241,7 @@ TNses <- ses(Tamil$train, h = 354, lambda = NULL, initial="optimal", biasadj=F)
 TNses.acc<-data.frame(accuracy(TNses))
 
 # Add the one-step forecasts for the training data to the plot
-autoplot(Tamil$train) + autolayer(fitted(TNses), series = "ses") + ylab("Wind Speed")
+autoplot(Tamil$train) + autolayer(fitted(TNses), series = "ses") + ylab("Wind Speed(m/sec)")
 
 ################################ Prophet Model ##############################################
 library(Metrics)
@@ -259,7 +259,8 @@ dyplot.prophet(TN.prophet, TN.prophetforecast)
 TNactual<- TN.temporal[1063:1416,2]
 
 
-TNprophet.acc<-data.frame(rmse=rmse(TNactual, TN.prophetforecast$yhat), mae=mae(TNactual, TN.prophetforecast$yhat))
+TNprophet.acc<-data.frame(rmse=rmse(TNactual, TN.prophetforecast$yhat),
+                          mae=mae(TNactual, TN.prophetforecast$yhat))
 
 detach("package:Metrics", unload = TRUE)
 
@@ -273,7 +274,7 @@ summary(TNdhr) # checking the AICc value from summary of the fit model, the valu
 TNdhr.forecast<-forecast(TNdhr, xreg= fourier(TN.ts, K=3, h=354))
 TNdhr.acc<-accuracy(TNdhr.forecast)
 
-autoplot(TNdhr.forecast) + ylab("Wind Speed")
+autoplot(TNdhr.forecast) + ylab("Wind Speed(m/sec)")
 
 ############################################################################################################
 ############### Accuracy Table ######################
@@ -313,12 +314,12 @@ MHWS.forecast=forecast(MHfit, h=180)
 #[q=air density(1.225kg/m^3 at sea level)] 
 #[A=Swept area of the rotor (largest rotor diameter used in the current time is 129m, so swept area=13070m^2) ]
 #[V=Wind Speed(m/s), which in this case have been forecasted]
-FutureWP<-data.frame("TamilWP"=(0.5 * 0.59 * 1.225 * 13070 * TNWS.forecast$mean^3), 
-                     "MaharashtraWP"=(0.5 * 0.59 * 1.225 * 13070 * MHWS.forecast$mean^3))
+FutureWP<-data.frame("Tamil Nadu Wind"=((0.5 * 0.59 * 1.225 * 13070 * TNWS.forecast$mean^3)/1000), 
+                     "Maharashtra Wind Power"=((0.5 * 0.59 * 1.225 * 13070 * MHWS.forecast$mean^3)/1000))
 
 write.table(FutureWP, "C:/Users/HP/Downloads/Research Project/Data/Future_WP.csv", sep=" ,", row.names=FALSE)
 
-autoplot(as.ts(FutureWP, start=c(2019, 11, 17), frequency=365))+ggtitle("Future Wind Power Produced in the 2 States") +xlab("Time") +ylab("KW")
+
 
 
 
