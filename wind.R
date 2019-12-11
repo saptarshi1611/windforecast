@@ -50,7 +50,8 @@ MH.ts <- ts(MH_ag, start= c(2016, 01, 01),  frequency=365)
 
 MH.df <- as.data.frame(MH.ts)
 names(MH.df)[1] <- "y"
-write.table(MH.df, "C:/Users/HP/Downloads/Research Project/Data/MH_all.csv", sep=" ,", row.names=FALSE)
+write.table(MH.df, "C:/Users/HP/Downloads/Research Project/Data/MH_all.csv",
+            sep=" ,", row.names=FALSE)
 
 autoplot(decompose(MH.ts))
 autoplot(MH.ts) +
@@ -70,7 +71,7 @@ Box.test(MH.ts, lag = 24, fitdf = 0, type = "Ljung")
 # The pvalue very less than 0.05 suggests that the data is not white noise
 #spliting 75% of the original data for training the models
 Maharashtra<-splitTrainTest(MH.ts, numTrain = length(MH.ts) - 354)
-#checking linearity
+#checking normality
 ggqqplot(MH.df$y)+
   ggtitle("Maharashtra Data Linearity")
 #Shapiro-Wilk normality test
@@ -95,7 +96,8 @@ MHarima.acc<-accuracy(MHarima.forecast)
 
 ####################### Neural Net ###################################################
 set.seed(18127355)
-MHnn=nnetar(Maharashtra$train,p=41,P=2,size =19,repeats=50, lambda = NULL, scale.inputs=F)
+MHnn=nnetar(Maharashtra$train,p=41,P=2,size =19,repeats=50,
+            lambda = NULL, scale.inputs=F)
 
 MHnn.forecast=forecast(MHnn, h=354)
 
@@ -119,7 +121,8 @@ autoplot(Maharashtra$train) + autolayer(fitted(MHses), series = "ses") + ylab("W
 library(Metrics)
 MH.temporal <- read.csv("MH_all.csv")
 
-MH.prophet<-prophet(MH.temporal[1:1062,], growth = 'linear', changepoints = NULL, seasonality.mode = 'additive', daily.seasonality=F,fit = T)
+MH.prophet<-prophet(MH.temporal[1:1062,], changepoints = NULL, 
+                    seasonality.mode = 'additive', daily.seasonality=F,fit = T)
 MHfuture <- make_future_dataframe(MH.prophet, periods = 354)
 MH.prophetforecast <- predict(MH.prophet, MHfuture, type="response")
 
@@ -128,15 +131,16 @@ dyplot.prophet(MH.prophet, MH.prophetforecast)
 ####### Errors
 MHactual<- MH.temporal[1063:1416,2]
 
-MHprophet.acc<-data.frame(rmse=rmse(MHactual, MH.prophetforecast$yhat), mae=mae(MHactual, MH.prophetforecast$yhat))
+MHprophet.acc<-data.frame(rmse=rmse(MHactual, MH.prophetforecast$yhat),
+                          mae=mae(MHactual, MH.prophetforecast$yhat))
 detach("package:Metrics", unload = TRUE)
 
 
 ####################Dynamic Harmonic Regression###################
 
-MHdhr<- auto.arima(Maharashtra$train, xreg= fourier(Maharashtra$train, K=1), lambda = 0, stationary = T,
-                  stepwise=F, trace=F, approximation=F, biasadj=T)
-summary(MHdhr) # checking the AICc value from summary of the fit model, the value of K is fixed with the minimum AICc value
+MHdhr<- auto.arima(Maharashtra$train, xreg= fourier(Maharashtra$train, K=1),
+                   lambda = 0, stationary = T,stepwise=F, trace=F, approximation=F, biasadj=T)
+summary(MHdhr) # checking for the minimum AICc value to determine the value of K
 MHdhr.forecast<-forecast(MHdhr, xreg= fourier(MH.ts, K=1, h=354))
 MHdhr.acc<-accuracy(MHdhr.forecast)
 checkresiduals(MHdhr)
@@ -151,7 +155,8 @@ MH.evaluation_table[2,2:3] <- MHnn.acc[1,c(2,3)]
 MH.evaluation_table[3,2:3] <- MHses.acc[1,c(2,3)]
 MH.evaluation_table[4,2:3] <- MHprophet.acc[1,1:2]
 MH.evaluation_table[5,2:3] <- MHdhr.acc[1,c(2,3)]
-write.table(MH.evaluation_table, "C:/Users/HP/Downloads/Research Project/Data/MH_accuracy.csv", sep=" ,", row.names=FALSE)
+write.table(MH.evaluation_table, "C:/Users/HP/Downloads/Research Project/Data/MH_accuracy.csv",
+            sep=" ,", row.names=FALSE)
 
 
 
@@ -181,7 +186,8 @@ TN_ag[,1]=round(TN_ag[,1],digits = 2)
 TN.ts <- ts(TN_ag, start= c(2016, 01, 01), frequency=365)
 TN.df <- as.data.frame(TN_ag)
 names(TN.df)[1] <- "y"
-write.table(TN.df, "C:/Users/HP/Downloads/Research Project/Data/TN_all.csv", sep=" ,", row.names=FALSE)
+write.table(TN.df, "C:/Users/HP/Downloads/Research Project/Data/TN_all.csv",
+            sep=" ,", row.names=FALSE)
 autoplot(decompose(TN.ts))
 
 autoplot(TN.ts) +
@@ -202,7 +208,7 @@ Box.test(TN.ts, lag = 24, fitdf = 0, type = "Ljung")
 
 Tamil<-splitTrainTest(TN.ts, numTrain = length(TN.ts) - 354) #CombMSC
 
-#checking linearity
+#checking normality
 ggqqplot(TN.df$y)+
   ggtitle("TamilNadu Data Linearity")
 #Shapiro-Wilk normality test
@@ -247,7 +253,7 @@ autoplot(Tamil$train) + autolayer(fitted(TNses), series = "ses") + ylab("Wind Sp
 library(Metrics)
 TN.temporal <- read.csv("TN_all.csv")
 
-TN.prophet<-prophet(TN.temporal[1:1062,], growth = 'linear', changepoints =c("2016-12-12"),
+TN.prophet<-prophet(TN.temporal[1:1062,], changepoints =c("2016-12-12"),
                     seasonality.mode = 'additive', daily.seasonality=F, fit = T)
 TNfuture <- make_future_dataframe(TN.prophet, periods = 354)
 TN.prophetforecast <- predict(TN.prophet, TNfuture, type="response")
@@ -286,7 +292,8 @@ TN.evaluation_table[2,2:3] <- TNnn.acc[1,c(2,3)]
 TN.evaluation_table[3,2:3] <- TNses.acc[1,c(2,3)]
 TN.evaluation_table[4,2:3] <- TNprophet.acc[1,1:2]
 TN.evaluation_table[5,2:3] <- TNdhr.acc[1,c(2,3)]
-write.table(TN.evaluation_table, "C:/Users/HP/Downloads/Research Project/Data/TN_accuracy.csv", sep=" ,", row.names=FALSE)
+write.table(TN.evaluation_table, "C:/Users/HP/Downloads/Research Project/Data/TN_accuracy.csv",
+            sep=" ,", row.names=FALSE)
 
 
 #################################################################################################################################################
